@@ -8,6 +8,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.net.Uri
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
@@ -61,7 +62,7 @@ class MainActivity : Activity() {
         page.addView(subtitle, matchWrap())
 
         val explanation = TextView(this).apply {
-            text = "The detector looks for the cream gift box and peach bow, then taps near the box centre. It can detect several boxes in one frame, including vertically separated boxes in the same column."
+            text = "The detector looks for the cream gift box and peach bow, then taps near the box centre. It can detect several boxes in one frame, including vertically separated boxes in the same column. A draggable floating circle appears over the game; tap it to choose Activate or Stop."
             textSize = 16f
             setTextColor(0xFFE6E9EF.toInt())
             setLineSpacing(dp(4).toFloat(), 1f)
@@ -128,6 +129,16 @@ class MainActivity : Activity() {
     }
 
     private fun beginCapturePermission() {
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "Allow display over other apps so the floating controls can appear", Toast.LENGTH_LONG).show()
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+            )
+            return
+        }
         if (!isTapServiceEnabled()) {
             Toast.makeText(this, "Enable Bag Catcher in Accessibility settings first", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))

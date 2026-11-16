@@ -38,6 +38,8 @@ class CaptureService : Service() {
     private var workWidth = 360
     private var workHeight = 760
     private var isCapturing = false
+    @Volatile private var autoTapEnabled = false
+    private var floatingControls: FloatingControlOverlay? = null
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -117,6 +119,14 @@ class CaptureService : Service() {
         )
         isCapturing = virtualDisplay != null
         lastProcessedMs = 0L
+        showFloatingControls()
+    }
+
+    private fun showFloatingControls() {
+        floatingControls?.remove()
+        floatingControls = FloatingControlOverlay(this, autoTapEnabled) { enabled ->
+            autoTapEnabled = enabled
+        }
     }
 
     private fun processLatestImage(reader: ImageReader) {
@@ -132,6 +142,7 @@ class CaptureService : Service() {
             // stale frames when the phone is busy.
             if (now - lastProcessedMs < 55L) return
             lastProcessedMs = now
+            if (!autoTapEnabled) return
 
             val gray = imageToGray(image, workWidth, workHeight) ?: return
             val detections = detector?.find(gray, workWidth, workHeight) ?: return
@@ -219,7 +230,7 @@ class CaptureService : Service() {
         }
         return builder
             .setContentTitle("Bag Catcher is active")
-            .setContentText("Watching for gift boxes. Keep the game in the foreground.")
+            .setContentText("Tap the floating BC circle to activate or stop automatic tapping.")
             .setSmallIcon(android.R.drawable.ic_menu_search)
             .setOngoing(true)
             .setContentIntent(openPendingIntent)
@@ -244,6 +255,9 @@ class CaptureService : Service() {
 
     private fun stopCaptureResources() {
         isCapturing = false
+        autoTapEnabled = false
+        floatingControls?.remove()
+        floatingControls = null
         try { imageReader?.setOnImageAvailableListener(null, null) } catch (_: Exception) {}
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
