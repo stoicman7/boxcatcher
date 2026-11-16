@@ -29,7 +29,9 @@ class BagDetector(context: Context) {
         val centerY: Float,
         val score: Float,
         val boxWidth: Int,
-        val boxHeight: Int
+        val boxHeight: Int,
+        val left: Float,
+        val top: Float
     )
 
     private data class Candidate(
@@ -37,12 +39,17 @@ class BagDetector(context: Context) {
         val centerY: Float,
         val score: Float,
         val width: Int,
-        val height: Int
+        val height: Int,
+        val left: Float,
+        val top: Float
     )
 
     private val sourceTemplates: List<SourceTemplate>
     private var preparedForWidth = -1
+    private var preparedConfidence = -1
     private var preparedTemplates: List<PreparedTemplate> = emptyList()
+    var lastRawCandidateCount: Int = 0
+        private set
 
     private data class SourceTemplate(
         val bitmap: Bitmap,
@@ -68,12 +75,20 @@ class BagDetector(context: Context) {
     }
 
     /** gray is a one-byte-per-pixel luminance image, already resized to 360 px wide. */
-    fun find(gray: ByteArray, frameWidth: Int, frameHeight: Int): List<Detection> {
+    fun find(
+        gray: ByteArray,
+        frameWidth: Int,
+        frameHeight: Int,
+        confidencePercent: Int = 74,
+        requestedScanStep: Int = 2
+    ): List<Detection> {
+        lastRawCandidateCount = 0
         if (frameWidth <= 0 || frameHeight <= 0 || gray.size < frameWidth * frameHeight) return emptyList()
-        prepareTemplates(frameWidth)
+        val confidence = confidencePercent.coerceIn(45, 90)
+        prepareTemplates(frameWidth, confidence)
 
         val candidates = ArrayList<Candidate>(24)
-        val scanStep = 2
+        val scanStep = requestedScanStep.coerceIn(1, 4)
         val yStart = (frameHeight * 0.025f).toInt()
         // Scan the entire width: Claude's measurements show bags can enter as far left as x≈14 px.
         val xStart = 0
@@ -114,7 +129,9 @@ class BagDetector(context: Context) {
                                     y + template.anchorY,
                                     score.toFloat(),
                                     template.width,
-                                    template.height
+                                    template.height,
+                                    x.toFloat(),
+                                    y.toFloat()
                                 )
                             )
                         }
@@ -125,6 +142,7 @@ class BagDetector(context: Context) {
             }
         }
 
+        lastRawCandidateCount = candidates.size
         if (candidates.isEmpty()) return emptyList()
         candidates.sortByDescending { it.score }
 
@@ -145,7 +163,9 @@ class BagDetector(context: Context) {
                         candidate.centerY,
                         candidate.score,
                         candidate.width,
-                        candidate.height
+                        candidate.height,
+                        candidate.left,
+                        candidate.top
                     )
                 )
             }
@@ -154,8 +174,8 @@ class BagDetector(context: Context) {
         return selected
     }
 
-    private fun prepareTemplates(frameWidth: Int) {
-        if (preparedForWidth == frameWidth) return
+    private fun prepareTemplates(frameWidth: Int, confidencePercent: Int) {
+        if (preparedForWidth == frameWidth && preparedConfidence == confidencePercent) return
         val scale = frameWidth / 360f
         preparedTemplates = sourceTemplates.map { source ->
             val targetWidth = max(14, (source.bitmap.width * scale).roundToInt())
@@ -195,9 +215,10 @@ class BagDetector(context: Context) {
                 variance,
                 source.anchorX * targetWidth,
                 source.anchorY * targetHeight,
-                source.threshold
+                (source.threshold + (confidencePercent - 74) / 100.0).coerceIn(0.45, 0.96)
             )
         }
         preparedForWidth = frameWidth
+        preparedConfidence = confidencePercent
     }
 }
