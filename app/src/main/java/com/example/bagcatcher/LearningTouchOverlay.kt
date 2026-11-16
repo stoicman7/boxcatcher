@@ -31,6 +31,7 @@ class LearningTouchOverlay(
         PixelFormat.TRANSLUCENT
     ).apply {
         gravity = Gravity.TOP or Gravity.START
+        alpha = 0.1f
     }
 
     private val points = ArrayList<PointF>()
