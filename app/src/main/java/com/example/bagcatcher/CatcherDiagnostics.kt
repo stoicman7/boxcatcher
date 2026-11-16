@@ -36,7 +36,7 @@ object CatcherDiagnostics {
 
     private fun addEventLocked(message: String) {
         val stamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
-        events.addLast("$"+"stamp  "+"$"+"message")
+        events.addLast(stamp + "  " + message)
         while (events.size > 120) events.removeFirst()
     }
 
@@ -62,14 +62,19 @@ object CatcherDiagnostics {
             frames++
             rawCandidates = raw
             detections = found
-            if (found > 0) addEventLocked("Frame "+"$"+"frames: "+"$"+"raw raw matches, "+"$"+"found separated box candidates")
+            if (found > 0) {
+                addEventLocked("Frame " + frames + ": " + raw + " raw matches, " + found + " separated box candidates")
+            }
         }
     }
 
     fun tapAttempt(x: Float, y: Float, durationMs: Int) {
         synchronized(lock) {
             tapAttempts++
-            addEventLocked("Tap attempt "+"$"+"tapAttempts at ("+"$"+"{x.toInt()}, "+"$"+"{y.toInt()}), duration "+"$"+"durationMs ms")
+            addEventLocked(
+                "Tap attempt " + tapAttempts + " at (" + x.toInt() + ", " + y.toInt() +
+                    "), duration " + durationMs + " ms"
+            )
         }
     }
 
@@ -104,14 +109,16 @@ object CatcherDiagnostics {
     fun frameError(message: String) {
         synchronized(lock) {
             frameErrors++
-            addEventLocked("Frame error: "+"$"+"message")
+            addEventLocked("Frame error: " + message)
         }
     }
 
     fun setAutoTapEnabled(enabled: Boolean) {
         synchronized(lock) {
-            autoTapEnabled = enabled
-            addEventLocked(if (enabled) "Automatic tapping enabled" else "Automatic tapping paused")
+            if (autoTapEnabled != enabled) {
+                autoTapEnabled = enabled
+                addEventLocked(if (enabled) "Automatic tapping enabled" else "Automatic tapping paused")
+            }
         }
     }
 
@@ -129,30 +136,30 @@ object CatcherDiagnostics {
 
     fun report(settings: CatcherSettings, tapServiceReady: Boolean): String {
         synchronized(lock) {
-            val currentAutoTapEnabled = autoTapEnabled
             val out = StringBuilder()
             out.append("BAG CATCHER DIAGNOSTIC REPORT\n")
-            out.append("Accessibility service connected: "+"$"+"tapServiceReady\n")
-            out.append("Auto taps enabled: "+"$"+"autoTapEnabled\n")
-            out.append("Frames processed: "+"$"+"frames\n")
-            out.append("Raw template matches (latest frame): "+"$"+"rawCandidates\n")
-            out.append("Separated box candidates (latest frame): "+"$"+"detections\n")
-            out.append("Tap attempts: "+"$"+"tapAttempts\n")
-            out.append("Android dispatch accepted: "+"$"+"dispatchAccepted\n")
-            out.append("Android dispatch rejected/busy: "+"$"+"dispatchRejected\n")
-            out.append("Gesture callbacks completed: "+"$"+"gestureCompleted\n")
-            out.append("Gesture callbacks cancelled: "+"$"+"gestureCancelled\n")
-            out.append("Frame errors: "+"$"+"frameErrors\n")
+            out.append("Accessibility service connected: ").append(tapServiceReady).append('\n')
+            out.append("Auto taps enabled: ").append(autoTapEnabled).append('\n')
+            out.append("Frames processed: ").append(frames).append('\n')
+            out.append("Raw template matches (latest frame): ").append(rawCandidates).append('\n')
+            out.append("Separated box candidates (latest frame): ").append(detections).append('\n')
+            out.append("Tap attempts: ").append(tapAttempts).append('\n')
+            out.append("Android dispatch accepted: ").append(dispatchAccepted).append('\n')
+            out.append("Android dispatch rejected/busy: ").append(dispatchRejected).append('\n')
+            out.append("Gesture callbacks completed: ").append(gestureCompleted).append('\n')
+            out.append("Gesture callbacks cancelled: ").append(gestureCancelled).append('\n')
+            out.append("Frame errors: ").append(frameErrors).append('\n')
             out.append("\nLIVE SETTINGS\n")
-            out.append("Core confidence threshold: "+"$"+"{settings.confidence}% (wide template +4 points)\n")
-            out.append("Tap duration: "+"$"+"{settings.tapDurationMs} ms\n")
-            out.append("Prediction lead: "+"$"+"{settings.leadMs} ms\n")
-            out.append("Estimated fall speed: "+"$"+"{settings.fallSpeedPxPerSec} screen px/s\n")
-            out.append("Tap X offset: "+"$"+"{settings.offsetX} screen px\n")
-            out.append("Tap Y offset: "+"$"+"{settings.offsetY} screen px\n")
-            out.append("Scan step: "+"$"+"{settings.scanStep} px\n")
-            out.append("Frame interval: "+"$"+"{settings.frameIntervalMs} ms\n")
-            out.append("Visual markers: "+"$"+"{settings.showOverlay}\n")
+            out.append("Core confidence threshold: ").append(settings.confidence)
+                .append("% (wide template +4 points)\n")
+            out.append("Tap duration: ").append(settings.tapDurationMs).append(" ms\n")
+            out.append("Prediction lead: ").append(settings.leadMs).append(" ms\n")
+            out.append("Estimated fall speed: ").append(settings.fallSpeedPxPerSec).append(" screen px/s\n")
+            out.append("Tap X offset: ").append(settings.offsetX).append(" screen px\n")
+            out.append("Tap Y offset: ").append(settings.offsetY).append(" screen px\n")
+            out.append("Scan step: ").append(settings.scanStep).append(" px\n")
+            out.append("Frame interval: ").append(settings.frameIntervalMs).append(" ms\n")
+            out.append("Visual markers: ").append(settings.showOverlay).append('\n')
             out.append("\nEVENT LOG (newest last)\n")
             for (event in events) out.append(event).append('\n')
             out.append("\nNote: Android's completed gesture callback does not prove the game registered the tap.\n")
