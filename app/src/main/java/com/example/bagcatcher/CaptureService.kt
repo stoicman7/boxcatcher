@@ -177,10 +177,16 @@ class CaptureService : Service() {
                 refreshSessionStatus(true)
             },
             {
+                // The full-screen learning layer would otherwise cover the
+                // calibration screen, so suspend learning before opening it.
+                learningEnabled = false
+                learningTouchOverlay?.remove()
+                CatcherDiagnostics.note("Learning mode paused to open debug settings")
                 val debugIntent = Intent(this, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
                 startActivity(debugIntent)
+                refreshSessionStatus(true)
             }
         )
     }
@@ -405,7 +411,8 @@ class CaptureService : Service() {
             autoTapEnabled,
             snapshot.tapAttempts,
             snapshot.dispatchRejected,
-            LearnedTemplateStore.count(this)
+            LearnedTemplateStore.count(this),
+            learningEnabled
         )
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
