@@ -142,7 +142,8 @@ class CaptureService : Service() {
 
         floatingControls = FloatingControlOverlay(this, autoTapEnabled, { enabled ->
             autoTapEnabled = enabled
-            CatcherDiagnostics.note(if (enabled) "Automatic tapping activated" else "Automatic tapping paused; visual detection continues")
+            CatcherDiagnostics.setAutoTapEnabled(enabled)
+            CatcherDiagnostics.note("Visual detection continues while auto taps are " + if (enabled) "ON" else "PAUSED")
         }, {
             val debugIntent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -361,6 +362,7 @@ class CaptureService : Service() {
     private fun stopCaptureResources() {
         isCapturing = false
         autoTapEnabled = false
+        CatcherDiagnostics.setAutoTapEnabled(false)
         lastDetectedCount = 0
         floatingControls?.remove()
         floatingControls = null
