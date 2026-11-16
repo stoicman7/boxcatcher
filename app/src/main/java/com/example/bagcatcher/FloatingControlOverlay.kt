@@ -310,7 +310,8 @@ class FloatingControlOverlay(
         autoEnabled: Boolean,
         attempts: Long = 0L,
         rejected: Long = 0L,
-        samples: Int = 0
+        samples: Int = 0,
+        learning: Boolean = false
     ) {
         mainHandler.post {
             detectedCount = boxes
@@ -318,6 +319,7 @@ class FloatingControlOverlay(
             attemptedTapCount = attempts
             rejectedTapCount = rejected
             learnedSampleCount = samples
+            learningEnabled = learning
             tapServiceReady = serviceReady
             if (enabled != autoEnabled) {
                 enabled = autoEnabled
