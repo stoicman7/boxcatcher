@@ -9,8 +9,11 @@ A lightweight Android 8.1+ prototype that detects the falling gift bags from the
 - Dependency-free normalized grayscale template matching (no OpenCV runtime dependency).
 - Multiple detections per frame with non-maximum suppression. The vertical suppression distance is deliberately small so two boxes falling in the same column are not merged into one target.
 - A simple downward-motion tracker to avoid tapping the same tracked bag repeatedly.
-- Simultaneous multi-point taps through an enabled Android AccessibilityService.
+- One normal single-finger tap at a time through the enabled Android AccessibilityService.
 - A foreground notification with a Stop action.
+- A transparent touch-through debug overlay that draws the detector's matched template rectangles and the exact next-tap crosshair.
+- Live on-device tuning for confidence, scan precision, frame interval, fall speed, prediction lead, tap duration, and X/Y tap offsets.
+- Separate counters and an exportable event log for detections, tap attempts, Android dispatch acceptance/rejection, gesture completion/cancellation, and frame errors.
 - A 360-pixel-wide working image and a restricted main-play-area region to avoid the bottom toolbar and chat controls.
 
 ## Important limitations
@@ -25,9 +28,25 @@ The detector currently uses these initial settings:
 - Frame processing throttle: about 18 frames/second (the device may deliver fewer).
 - Template score thresholds: 0.74 for the core gift-box crop and 0.78 for the wider crop.
 - Tap area: central play region, excluding the top edge and lower toolbar/chat region.
-- Each detected gift box is tapped with an individual single-finger gesture; the lowest eligible box is handled first.
+- Each detected gift box is sent as an individual single-finger gesture; the lowest eligible box is handled first.
+- Live settings are read during capture, so changing a slider does not require restarting the session.
 
 Because this uses image matching, it can still miss boxes or occasionally match a visually similar object. Test it in a low-stakes round first. A different device resolution, game update, UI layout, or overlay may require recalibration.
+
+## Live calibration (no repeated APK downloads)
+
+Install the debug APK once. During a game session, tap the floating **BC** circle and choose **OPEN DEBUG SETTINGS**. You can change the tuning values while capture is running; they are saved on the phone and applied on the next processed frame.
+
+Recommended calibration order:
+
+1. Pause automatic tapping. Detection and the overlay continue running.
+2. Check the cyan rectangles. They should surround the gift-box pattern, not unrelated graphics. Lower confidence if real boxes are missed; raise it if unrelated objects are marked.
+3. Check the red **NEXT TAP** crosshair. Adjust horizontal/vertical offset until it sits on the cream box area. Positive Y moves down; negative Y moves up.
+4. Only after the target is correctly positioned, activate tapping and tune prediction lead and gesture duration.
+5. If the phone becomes slow, increase the frame interval or scan step. A scan step of 1 is more thorough but uses more CPU.
+6. Use **Copy diagnostic report** or **Share diagnostic report** to send the exact counters and recent events after a failed attempt.
+
+The diagnostic report deliberately separates an attempted tap, Android accepting the dispatch, and Android's completed/cancelled gesture callback. A completed callback does **not** prove that the game registered the touch.
 
 ## Build the APK with GitHub Actions
 
