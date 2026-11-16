@@ -218,7 +218,7 @@ class CaptureService : Service() {
         )
 
         // Only deliberate taps become positive training examples. Swipes and
-        // drags are replayed normally but are not treated as bag labels.
+        // drags are passed through in game mode but are not treated as labels.
         if (movement <= 24.0) {
             val frame = lastGrayFrame
             val frameAge = SystemClock.elapsedRealtime() - lastGrayFrameAtMs
@@ -290,6 +290,11 @@ class CaptureService : Service() {
                 refreshSessionStatus()
                 return
             }
+
+            // Keep the most recent processed frame so the user's next tap can
+            // be labelled against the exact screen image they saw.
+            lastGrayFrame = gray
+            lastGrayFrameAtMs = now
 
             val activeDetector = detector ?: return
             val detections = activeDetector.find(
