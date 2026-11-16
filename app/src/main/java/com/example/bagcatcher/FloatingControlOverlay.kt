@@ -299,8 +299,8 @@ class FloatingControlOverlay(
     private fun statusText(): String {
         val tapState = if (tapServiceReady) "tap service ready" else "tap service OFF"
         val autoState = if (enabled) "AUTO ON" else "AUTO PAUSED"
-        val learningState = if (learningEnabled) "LEARNING ON · samples: $learnedSampleCount\\n" else ""
-        return "$autoState · $tapState\\n$learningStateBoxes: $detectedCount · attempts: $attemptedTapCount\\nAndroid gesture callbacks completed: $completedTapCount · rejected/busy: $rejectedTapCount"
+        val learningState = if (learningEnabled) "LEARNING ON · samples: $learnedSampleCount\n" else ""
+        return "$autoState · $tapState\n${learningState}Boxes: $detectedCount · attempts: $attemptedTapCount\nAndroid gesture callbacks completed: $completedTapCount · rejected/busy: $rejectedTapCount"
     }
 
     fun updateStats(
@@ -338,6 +338,15 @@ class FloatingControlOverlay(
         menuView = null
         menuParams = null
         statusView = null
+    }
+
+    fun bringToFront() {
+        if (removed) return
+        try {
+            windowManager.removeView(bubble)
+            windowManager.addView(bubble, bubbleParams)
+        } catch (_: Exception) {
+        }
     }
 
     fun remove() {
