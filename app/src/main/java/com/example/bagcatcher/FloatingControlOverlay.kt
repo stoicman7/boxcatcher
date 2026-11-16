@@ -343,8 +343,9 @@ class FloatingControlOverlay(
             learningEnabled = learning
             learningReplayEnabled = learning && replayTouches
             tapServiceReady = serviceReady
-            if (enabled != autoEnabled) enabled = autoEnabled
-            if (enabled != autoEnabled || learningChanged) updateBubble()
+            val autoChanged = enabled != autoEnabled
+            if (autoChanged) enabled = autoEnabled
+            if (autoChanged || learningChanged) updateBubble()
             statusView?.text = statusText()
             bubble.contentDescription = statusText()
             safelyUpdateBubble()
