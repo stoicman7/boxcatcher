@@ -28,14 +28,14 @@ class TapAccessibilityService : AccessibilityService() {
      * Sends one normal single-finger tap. We deliberately do not combine multiple
      * bags into simultaneous strokes: many games ignore or mishandle multi-touch.
      */
-    fun tap(x: Float, y: Float, onComplete: (Boolean) -> Unit): Boolean {
+    fun tap(x: Float, y: Float, durationMs: Int, onComplete: (Boolean) -> Unit): Boolean {
         if (!gestureBusy.compareAndSet(false, true)) return false
 
         val path = Path().apply {
             moveTo(x, y)
             lineTo(x + 1f, y + 1f)
         }
-        val stroke = GestureDescription.StrokeDescription(path, 0L, TAP_DURATION_MS)
+        val stroke = GestureDescription.StrokeDescription(path, 0L, durationMs.coerceIn(25, 180).toLong())
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         val handler = Handler(Looper.getMainLooper())
 
@@ -67,11 +67,10 @@ class TapAccessibilityService : AccessibilityService() {
         @Volatile
         private var instance: TapAccessibilityService? = null
         private val gestureBusy = AtomicBoolean(false)
-        private const val TAP_DURATION_MS = 75L
 
-        fun sendTap(x: Float, y: Float, onComplete: (Boolean) -> Unit): Boolean {
+        fun sendTap(x: Float, y: Float, durationMs: Int = 75, onComplete: (Boolean) -> Unit): Boolean {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
-            return instance?.tap(x, y, onComplete) ?: false
+            return instance?.tap(x, y, durationMs, onComplete) ?: false
         }
 
         fun isConnected(): Boolean = instance != null
