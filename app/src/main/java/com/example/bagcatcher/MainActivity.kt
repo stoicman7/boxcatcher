@@ -412,9 +412,11 @@ class MainActivity : Activity() {
             return
         }
         if (!isTapServiceEnabled()) {
-            Toast.makeText(this, "Enable Bag Catcher in Accessibility settings first", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            return
+            Toast.makeText(
+                this,
+                "Video learning works without Accessibility. Enable it only if you also want game-touch replay or automatic tapping.",
+                Toast.LENGTH_LONG
+            ).show()
         }
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         startActivityForResult(manager.createScreenCaptureIntent(), projectionRequestCode)
