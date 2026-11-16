@@ -131,7 +131,8 @@ class CaptureService : Service() {
 
         // Detection remains active while taps are paused. This makes it possible
         // to inspect matches and tune settings without accidentally tapping.
-        autoTapEnabled = true
+        autoTapEnabled = false
+        CatcherDiagnostics.setAutoTapEnabled(false)
         showFloatingControls()
         refreshSessionStatus(true)
     }
