@@ -48,6 +48,7 @@ class CaptureService : Service() {
     private var detectionOverlay: DetectionOverlay? = null
     private var learningTouchOverlay: LearningTouchOverlay? = null
     @Volatile private var learningEnabled = false
+    @Volatile private var learningReplayEnabled = false
     @Volatile private var lastGrayFrame: ByteArray? = null
     @Volatile private var lastGrayFrameAtMs = 0L
 
@@ -162,14 +163,21 @@ class CaptureService : Service() {
                 CatcherDiagnostics.setAutoTapEnabled(enabled)
                 CatcherDiagnostics.note(if (enabled) "Automatic tapping activated" else "Automatic tapping paused")
             },
-            { enabled ->
+            { enabled, replayTouches ->
                 learningEnabled = enabled
+                learningReplayEnabled = enabled && replayTouches
                 if (enabled) {
                     autoTapEnabled = false
                     CatcherDiagnostics.setAutoTapEnabled(false)
                     learningTouchOverlay?.attach()
                     floatingControls?.bringToFront()
-                    CatcherDiagnostics.note("Learning mode ON: your taps are recorded as positive bag examples and replayed to the game")
+                    CatcherDiagnostics.note(
+                        if (learningReplayEnabled) {
+                            "Learning game mode ON: taps are recorded and replayed to the game"
+                        } else {
+                            "Learning video mode ON: taps are recorded but not passed to the video player"
+                        }
+                    )
                 } else {
                     learningTouchOverlay?.remove()
                     CatcherDiagnostics.note("Learning mode OFF")
@@ -180,6 +188,7 @@ class CaptureService : Service() {
                 // The full-screen learning layer would otherwise cover the
                 // calibration screen, so suspend learning before opening it.
                 learningEnabled = false
+                learningReplayEnabled = false
                 learningTouchOverlay?.remove()
                 CatcherDiagnostics.note("Learning mode paused to open debug settings")
                 val debugIntent = Intent(this, MainActivity::class.java).apply {
@@ -239,6 +248,12 @@ class CaptureService : Service() {
             } else {
                 CatcherDiagnostics.note("Learning tap not saved: no recent captured frame was available")
             }
+        }
+
+        if (!learningReplayEnabled) {
+            CatcherDiagnostics.note("Learning video tap recorded without forwarding the touch to the video app")
+            finish(true)
+            return
         }
 
         val accepted = TapAccessibilityService.replayUserGesture(points, durationMs) { completed ->
@@ -412,7 +427,8 @@ class CaptureService : Service() {
             snapshot.tapAttempts,
             snapshot.dispatchRejected,
             LearnedTemplateStore.count(this),
-            learningEnabled
+            learningEnabled,
+            learningReplayEnabled
         )
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -474,6 +490,7 @@ class CaptureService : Service() {
         learningTouchOverlay?.remove()
         learningTouchOverlay = null
         learningEnabled = false
+        learningReplayEnabled = false
         lastGrayFrame = null
         lastGrayFrameAtMs = 0L
         try { imageReader?.setOnImageAvailableListener(null, null) } catch (_: Exception) {}
