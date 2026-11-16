@@ -44,6 +44,7 @@ class CaptureService : Service() {
     @Volatile private var lastFrameError = false
     private var lastNotificationUpdateMs = 0L
     private var floatingControls: FloatingControlOverlay? = null
+    private var detectionOverlay: DetectionOverlay? = null
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -126,8 +127,10 @@ class CaptureService : Service() {
         lastDetectedCount = 0
         completedTapCount = 0
         lastFrameError = false
-        // Start tapping as soon as the user grants screen capture. The floating
-        // circle can pause or reactivate it at any time.
+        CatcherDiagnostics.startSession()
+
+        // Detection remains active while taps are paused. This makes it possible
+        // to inspect matches and tune settings without accidentally tapping.
         autoTapEnabled = true
         showFloatingControls()
         refreshSessionStatus(true)
@@ -135,9 +138,19 @@ class CaptureService : Service() {
 
     private fun showFloatingControls() {
         floatingControls?.remove()
-        floatingControls = FloatingControlOverlay(this, autoTapEnabled) { enabled ->
+        detectionOverlay?.remove()
+
+        floatingControls = FloatingControlOverlay(this, autoTapEnabled, { enabled ->
             autoTapEnabled = enabled
-        }
+            CatcherDiagnostics.note(if (enabled) "Automatic tapping activated" else "Automatic tapping paused; visual detection continues")
+        }, {
+            val debugIntent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(debugIntent)
+        })
+
+        detectionOverlay = DetectionOverlay(this).also { it.attach() }
     }
 
     private fun processLatestImage(reader: ImageReader) {
@@ -149,16 +162,29 @@ class CaptureService : Service() {
 
         try {
             val now = SystemClock.elapsedRealtime()
-            // Aim for roughly 18 frames/sec while allowing ImageReader to discard
-            // stale frames when the phone is busy.
-            if (now - lastProcessedMs < 55L) return
+            val settings = CatcherSettings.load(this)
+            if (now - lastProcessedMs < settings.frameIntervalMs.toLong()) return
             lastProcessedMs = now
-            if (!autoTapEnabled) return
 
-            val gray = imageToGray(image, workWidth, workHeight) ?: return
-            val detections = detector?.find(gray, workWidth, workHeight) ?: return
+            val gray = imageToGray(image, workWidth, workHeight)
+            if (gray == null) {
+                lastFrameError = true
+                CatcherDiagnostics.frameError("Could not convert captured image to grayscale")
+                refreshSessionStatus()
+                return
+            }
+
+            val activeDetector = detector ?: return
+            val detections = activeDetector.find(
+                gray,
+                workWidth,
+                workHeight,
+                settings.confidence,
+                settings.scanStep
+            )
             lastDetectedCount = detections.size
             lastFrameError = false
+            CatcherDiagnostics.frame(activeDetector.lastRawCandidateCount, detections.size)
 
             val requests = tracker.update(
                 detections,
@@ -166,31 +192,54 @@ class CaptureService : Service() {
                 sourceWidth,
                 sourceHeight,
                 workWidth,
-                workHeight
+                workHeight,
+                settings.leadMs,
+                settings.fallSpeedPxPerSec,
+                settings.offsetX,
+                settings.offsetY
             )
 
-            // Send one independent tap at a time. Remaining detected boxes stay
-            // tracked and are tapped on following frames, including boxes behind
-            // another bag in the same column.
+            // Draw the exact detected template bounds and the exact adjusted
+            // screen coordinate that would be tapped next.
             val target = requests.firstOrNull()
-            if (target != null) {
-                val accepted = TapAccessibilityService.sendTap(target.x, target.y) { completed ->
+            detectionOverlay?.update(
+                detections,
+                sourceWidth.toFloat() / workWidth,
+                sourceHeight.toFloat() / workHeight,
+                target?.x,
+                target?.y,
+                settings.showOverlay
+            )
+
+            // Pausing auto taps does not pause frame analysis or the visual overlay.
+            if (autoTapEnabled && target != null) {
+                CatcherDiagnostics.tapAttempt(target.x, target.y, settings.tapDurationMs)
+                val accepted = TapAccessibilityService.sendTap(target.x, target.y, settings.tapDurationMs) { completed ->
                     captureHandler?.post {
                         if (completed) {
                             tracker.markTapped(listOf(target.trackId))
                             completedTapCount++
+                            CatcherDiagnostics.gestureCompleted()
+                        } else {
+                            CatcherDiagnostics.gestureCancelled()
                         }
                         refreshSessionStatus(true)
                     }
                 }
-                if (!accepted) refreshSessionStatus()
+                if (accepted) {
+                    CatcherDiagnostics.dispatchAccepted()
+                } else {
+                    CatcherDiagnostics.dispatchRejected()
+                    refreshSessionStatus()
+                }
             } else {
                 refreshSessionStatus()
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
             lastFrameError = true
+            CatcherDiagnostics.frameError(error.javaClass.simpleName + ": " + (error.message ?: "unknown"))
             refreshSessionStatus()
-            // Keep the capture service alive if an individual frame is malformed.
+            // Keep capture alive if an individual frame is malformed.
         } finally {
             try {
                 image.close()
@@ -218,8 +267,6 @@ class CaptureService : Service() {
                 var greenSum = 0
                 var blueSum = 0
                 var count = 0
-                // Area averaging keeps the downscaled frame close to the template
-                // preparation method and reduces aliasing on the tiny box pattern.
                 for (sy in sourceY0 until sourceY1) {
                     val rowOffset = sy * rowStride
                     for (sx in sourceX0 until sourceX1) {
@@ -249,19 +296,27 @@ class CaptureService : Service() {
         val state = when {
             !tapReady -> "Accessibility service disconnected"
             autoTapEnabled -> "AUTO TAPS ON"
-            else -> "AUTO TAPS PAUSED"
+            else -> "AUTO TAPS PAUSED · DETECTION ON"
         }
-        val detail = "$state · gift boxes: $lastDetectedCount · taps: $completedTapCount" +
+        val snapshot = CatcherDiagnostics.snapshot()
+        val detail = "$state · boxes: $lastDetectedCount · gestures completed: $completedTapCount" +
             if (lastFrameError) " · frame error" else ""
 
-        floatingControls?.updateStats(lastDetectedCount, completedTapCount, tapReady, autoTapEnabled)
+        floatingControls?.updateStats(
+            lastDetectedCount,
+            completedTapCount,
+            tapReady,
+            autoTapEnabled,
+            snapshot.tapAttempts,
+            snapshot.dispatchRejected
+        )
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, buildNotification(detail))
     }
 
     private fun buildNotification(
-        detail: String = "Tap the floating BC circle to activate or stop automatic tapping."
+        detail: String = "Tap the floating BC circle to open controls and live calibration."
     ): Notification {
         val stopIntent = Intent(this, CaptureService::class.java).apply { action = ACTION_STOP }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
@@ -309,6 +364,8 @@ class CaptureService : Service() {
         lastDetectedCount = 0
         floatingControls?.remove()
         floatingControls = null
+        detectionOverlay?.remove()
+        detectionOverlay = null
         try { imageReader?.setOnImageAvailableListener(null, null) } catch (_: Exception) {}
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
