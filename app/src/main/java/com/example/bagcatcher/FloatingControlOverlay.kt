@@ -49,6 +49,8 @@ class FloatingControlOverlay(
     private var statusView: TextView? = null
     private var detectedCount = 0
     private var completedTapCount = 0
+    private var attemptedTapCount = 0L
+    private var rejectedTapCount = 0L
     private var tapServiceReady = false
     private var enabled = initialEnabled
     private var removed = false
@@ -266,13 +268,22 @@ class FloatingControlOverlay(
     private fun statusText(): String {
         val tapState = if (tapServiceReady) "tap service ready" else "tap service OFF"
         val autoState = if (enabled) "AUTO ON" else "AUTO PAUSED"
-        return "$autoState · $tapState\nBoxes: $detectedCount · successful taps: $completedTapCount"
+        return "$autoState · $tapState\nBoxes: $detectedCount · attempts: $attemptedTapCount\nAndroid gesture callbacks completed: $completedTapCount · rejected/busy: $rejectedTapCount"
     }
 
-    fun updateStats(boxes: Int, taps: Int, serviceReady: Boolean, autoEnabled: Boolean) {
+    fun updateStats(
+        boxes: Int,
+        taps: Int,
+        serviceReady: Boolean,
+        autoEnabled: Boolean,
+        attempts: Long = 0L,
+        rejected: Long = 0L
+    ) {
         mainHandler.post {
             detectedCount = boxes
             completedTapCount = taps
+            attemptedTapCount = attempts
+            rejectedTapCount = rejected
             tapServiceReady = serviceReady
             if (enabled != autoEnabled) {
                 enabled = autoEnabled
