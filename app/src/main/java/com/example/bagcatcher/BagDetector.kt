@@ -47,6 +47,7 @@ class BagDetector(context: Context) {
     private val sourceTemplates: List<SourceTemplate>
     private var preparedForWidth = -1
     private var preparedConfidence = -1
+    private var preparedLearnedRevision = -1
     private var preparedTemplates: List<PreparedTemplate> = emptyList()
     var lastRawCandidateCount: Int = 0
         private set
@@ -175,9 +176,13 @@ class BagDetector(context: Context) {
     }
 
     private fun prepareTemplates(frameWidth: Int, confidencePercent: Int) {
-        if (preparedForWidth == frameWidth && preparedConfidence == confidencePercent) return
+        val learnedRevision = LearnedTemplateStore.revision(context)
+        if (preparedForWidth == frameWidth &&
+            preparedConfidence == confidencePercent &&
+            preparedLearnedRevision == learnedRevision
+        ) return
         val scale = frameWidth / 360f
-        preparedTemplates = sourceTemplates.map { source ->
+        val prepared = sourceTemplates.map { source ->
             val targetWidth = max(14, (source.bitmap.width * scale).roundToInt())
             val targetHeight = max(14, (source.bitmap.height * scale).roundToInt())
             val scaled = Bitmap.createScaledBitmap(source.bitmap, targetWidth, targetHeight, true)
@@ -217,8 +222,48 @@ class BagDetector(context: Context) {
                 source.anchorY * targetHeight,
                 (source.threshold + (confidencePercent - 74) / 100.0).coerceIn(0.45, 0.96)
             )
+        }.toMutableList()
+
+        // User-taught positive crops are additional appearance templates. A
+        // revision change rebuilds these only after a new example is saved.
+        for (patch in LearnedTemplateStore.loadPatches(context)) {
+            val width = LearnedTemplateStore.PATCH_SIZE
+            val height = LearnedTemplateStore.PATCH_SIZE
+            val samples = ArrayList<Sample>()
+            var sum = 0.0
+            var sumSquares = 0.0
+            var sy = 1
+            while (sy < height - 1) {
+                var sx = 1
+                while (sx < width - 1) {
+                    val value = patch[sy * width + sx].toInt() and 0xFF
+                    samples.add(Sample(sx, sy, value))
+                    sum += value
+                    sumSquares += value * value
+                    sx += 4
+                }
+                sy += 4
+            }
+            val n = samples.size.toDouble()
+            val mean = sum / n
+            val variance = max(1.0, sumSquares - (sum * sum / n))
+            prepared.add(
+                PreparedTemplate(
+                    width,
+                    height,
+                    samples.toTypedArray(),
+                    mean,
+                    variance,
+                    width / 2f,
+                    height / 2f,
+                    (0.82 + (confidencePercent - 74) / 100.0).coerceIn(0.55, 0.97)
+                )
+            )
         }
+
+        preparedTemplates = prepared
         preparedForWidth = frameWidth
         preparedConfidence = confidencePercent
+        preparedLearnedRevision = learnedRevision
     }
 }
