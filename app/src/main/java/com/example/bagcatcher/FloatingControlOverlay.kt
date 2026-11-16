@@ -156,7 +156,7 @@ class FloatingControlOverlay(
             setLineSpacing(dp(2).toFloat(), 1f)
         }
         panel.addView(statusView, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(42)
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(60)
         ))
 
         val activate = actionRow("ACTIVATE AUTO TAPS", 0xFF167B55.toInt())
@@ -229,7 +229,7 @@ class FloatingControlOverlay(
         val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
         params.x = (bubbleParams.x + bubbleSize - panelWidth).coerceIn(0, maxX)
 
-        val estimatedPanelHeight = dp(220)
+        val estimatedPanelHeight = dp(245)
         val below = bubbleParams.y + bubbleSize + dp(8)
         params.y = if (below + estimatedPanelHeight <= metrics.heightPixels) {
             below
