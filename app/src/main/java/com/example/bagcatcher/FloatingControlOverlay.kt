@@ -22,7 +22,8 @@ import kotlin.math.abs
 class FloatingControlOverlay(
     private val context: Context,
     initialEnabled: Boolean,
-    private val onEnabledChanged: (Boolean) -> Unit
+    private val onEnabledChanged: (Boolean) -> Unit,
+    private val onOpenDebug: () -> Unit
 ) {
     private val windowManager =
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -170,6 +171,13 @@ class FloatingControlOverlay(
         }
         panel.addView(stop, actionParams())
 
+        val debug = actionRow("OPEN DEBUG SETTINGS", 0xFF394457.toInt())
+        debug.setOnClickListener {
+            hideMenu()
+            onOpenDebug()
+        }
+        panel.addView(debug, actionParams())
+
         val params = WindowManager.LayoutParams(
             panelWidth,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -219,7 +227,7 @@ class FloatingControlOverlay(
         val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
         params.x = (bubbleParams.x + bubbleSize - panelWidth).coerceIn(0, maxX)
 
-        val estimatedPanelHeight = dp(170)
+        val estimatedPanelHeight = dp(220)
         val below = bubbleParams.y + bubbleSize + dp(8)
         params.y = if (below + estimatedPanelHeight <= metrics.heightPixels) {
             below
