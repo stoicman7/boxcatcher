@@ -23,9 +23,9 @@ The detector currently uses these initial settings:
 - Target area: gift box/bow, with the tap point near its centre and a small 12 ms downward lead.
 - Working width: up to 360 pixels.
 - Frame processing throttle: about 18 frames/second (the device may deliver fewer).
-- Template score threshold: 0.82.
+- Template score thresholds: 0.74 for the core gift-box crop and 0.78 for the wider crop.
 - Tap area: central play region, excluding the top edge and lower toolbar/chat region.
-- Up to 8 detected boxes may be tapped in one multi-touch gesture.
+- Each detected gift box is tapped with an individual single-finger gesture; the lowest eligible box is handled first.
 
 Because this uses image matching, it can still miss boxes or occasionally match a visually similar object. Test it in a low-stakes round first. A different device resolution, game update, UI layout, or overlay may require recalibration.
 
@@ -58,7 +58,7 @@ Android requires the user to approve screen capture for every new capture sessio
 - Minimum Android version: Android 8.0 (API 26); intended to run on Android 8.1.
 - The screen is downsampled using area averaging before matching.
 - Both templates are centered around the visible cream gift box and peach bow. The wider template provides a second match shape; non-maximum suppression merges duplicate matches from the two templates while preserving vertically separated boxes.
-- The tap service dispatches up to eight simultaneous short strokes. Some games may handle simultaneous touches differently; this behavior must be verified on the actual game/device.
+- The tap service dispatches one 75 ms single-finger stroke at a time. A tiny 1 px path segment gives Android a non-zero gesture path while keeping the touch effectively stationary. Verify touch registration on the actual game/device.
 - This tool only performs local screen analysis and taps. It does not log in, send messages, or access game account data.
 
 ## Project structure
