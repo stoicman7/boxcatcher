@@ -10,7 +10,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** Lightweight, dependency-free multi-template detector for the gift box/bow. */
-class BagDetector(context: Context) {
+class BagDetector(private val context: Context) {
     private data class Sample(val offsetX: Int, val offsetY: Int, val value: Int)
 
     private data class PreparedTemplate(
