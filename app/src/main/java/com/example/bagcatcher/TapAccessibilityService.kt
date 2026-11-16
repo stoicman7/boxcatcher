@@ -24,30 +24,41 @@ class TapAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    fun tapMany(points: List<Pair<Float, Float>>): Boolean {
-        if (points.isEmpty() || !gestureBusy.compareAndSet(false, true)) return false
-        val builder = GestureDescription.Builder()
-        points.take(8).forEach { (x, y) ->
-            val path = Path().apply {
-                moveTo(x, y)
-                lineTo(x + 1.0f, y + 1.0f)
-            }
-            builder.addStroke(GestureDescription.StrokeDescription(path, 0L, 35L))
-        }
-        val callback = object : GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                gestureBusy.set(false)
-            }
+    /**
+     * Sends one normal single-finger tap. We deliberately do not combine multiple
+     * bags into simultaneous strokes: many games ignore or mishandle multi-touch.
+     */
+    fun tap(x: Float, y: Float, onComplete: (Boolean) -> Unit): Boolean {
+        if (!gestureBusy.compareAndSet(false, true)) return false
 
-            override fun onCancelled(gestureDescription: GestureDescription?) {
-                gestureBusy.set(false)
-            }
+        val path = Path().apply {
+            moveTo(x, y)
+            lineTo(x, y)
         }
+        val stroke = GestureDescription.StrokeDescription(path, 0L, TAP_DURATION_MS)
+        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        val handler = Handler(Looper.getMainLooper())
+
         val accepted = try {
-            dispatchGesture(builder.build(), callback, Handler(Looper.getMainLooper()))
+            dispatchGesture(
+                gesture,
+                object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        gestureBusy.set(false)
+                        onComplete(true)
+                    }
+
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        gestureBusy.set(false)
+                        onComplete(false)
+                    }
+                },
+                handler
+            )
         } catch (_: Exception) {
             false
         }
+
         if (!accepted) gestureBusy.set(false)
         return accepted
     }
@@ -56,10 +67,11 @@ class TapAccessibilityService : AccessibilityService() {
         @Volatile
         private var instance: TapAccessibilityService? = null
         private val gestureBusy = AtomicBoolean(false)
+        private const val TAP_DURATION_MS = 55L
 
-        fun sendTaps(points: List<Pair<Float, Float>>): Boolean {
+        fun sendTap(x: Float, y: Float, onComplete: (Boolean) -> Unit): Boolean {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
-            return instance?.tapMany(points) ?: false
+            return instance?.tap(x, y, onComplete) ?: false
         }
 
         fun isConnected(): Boolean = instance != null

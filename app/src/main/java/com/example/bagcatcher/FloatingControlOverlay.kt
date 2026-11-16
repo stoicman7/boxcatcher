@@ -10,6 +10,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.os.Handler
+import android.os.Looper
 import kotlin.math.abs
 
 /**
@@ -41,7 +43,12 @@ class FloatingControlOverlay(
         y = (context.resources.displayMetrics.heightPixels * 0.42f).toInt()
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var menuView: View? = null
+    private var statusView: TextView? = null
+    private var detectedCount = 0
+    private var completedTapCount = 0
+    private var tapServiceReady = false
     private var enabled = initialEnabled
     private var removed = false
     private var downRawX = 0f
@@ -139,13 +146,14 @@ class FloatingControlOverlay(
             LinearLayout.LayoutParams.MATCH_PARENT, dp(22)
         ))
 
-        val status = TextView(context).apply {
-            text = if (enabled) "Automatic tapping is ON" else "Automatic tapping is OFF"
-            textSize = 12f
+        statusView = TextView(context).apply {
+            text = statusText()
+            textSize = 11f
             setTextColor(0xFFD0D3DC.toInt())
+            setLineSpacing(dp(2).toFloat(), 1f)
         }
-        panel.addView(status, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(22)
+        panel.addView(statusView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(42)
         ))
 
         val activate = actionRow("ACTIVATE AUTO TAPS", 0xFF167B55.toInt())
@@ -211,7 +219,7 @@ class FloatingControlOverlay(
         val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
         params.x = (bubbleParams.x + bubbleSize - panelWidth).coerceIn(0, maxX)
 
-        val estimatedPanelHeight = dp(150)
+        val estimatedPanelHeight = dp(170)
         val below = bubbleParams.y + bubbleSize + dp(8)
         params.y = if (below + estimatedPanelHeight <= metrics.heightPixels) {
             below
@@ -244,9 +252,27 @@ class FloatingControlOverlay(
         safelyUpdateBubble()
         onEnabledChanged(value)
         val panel = menuView as? LinearLayout
-        if (panel != null && panel.childCount > 1) {
-            (panel.getChildAt(1) as? TextView)?.text =
-                if (enabled) "Automatic tapping is ON" else "Automatic tapping is OFF"
+        statusView?.text = statusText()
+    }
+
+    private fun statusText(): String {
+        val tapState = if (tapServiceReady) "tap service ready" else "tap service OFF"
+        val autoState = if (enabled) "AUTO ON" else "AUTO PAUSED"
+        return "$autoState · $tapState\\nBoxes: $detectedCount · successful taps: $completedTapCount"
+    }
+
+    fun updateStats(boxes: Int, taps: Int, serviceReady: Boolean, autoEnabled: Boolean) {
+        mainHandler.post {
+            detectedCount = boxes
+            completedTapCount = taps
+            tapServiceReady = serviceReady
+            if (enabled != autoEnabled) {
+                enabled = autoEnabled
+                updateBubble()
+            }
+            statusView?.text = statusText()
+            bubble.contentDescription = statusText()
+            safelyUpdateBubble()
         }
     }
 
@@ -258,6 +284,7 @@ class FloatingControlOverlay(
         }
         menuView = null
         menuParams = null
+        statusView = null
     }
 
     fun remove() {

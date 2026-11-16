@@ -39,6 +39,10 @@ class CaptureService : Service() {
     private var workHeight = 760
     private var isCapturing = false
     @Volatile private var autoTapEnabled = false
+    @Volatile private var lastDetectedCount = 0
+    @Volatile private var completedTapCount = 0
+    @Volatile private var lastFrameError = false
+    private var lastNotificationUpdateMs = 0L
     private var floatingControls: FloatingControlOverlay? = null
 
     private val projectionCallback = object : MediaProjection.Callback() {
@@ -119,7 +123,14 @@ class CaptureService : Service() {
         )
         isCapturing = virtualDisplay != null
         lastProcessedMs = 0L
+        lastDetectedCount = 0
+        completedTapCount = 0
+        lastFrameError = false
+        // Start tapping as soon as the user grants screen capture. The floating
+        // circle can pause or reactivate it at any time.
+        autoTapEnabled = true
         showFloatingControls()
+        refreshSessionStatus(true)
     }
 
     private fun showFloatingControls() {
@@ -146,7 +157,8 @@ class CaptureService : Service() {
 
             val gray = imageToGray(image, workWidth, workHeight) ?: return
             val detections = detector?.find(gray, workWidth, workHeight) ?: return
-            if (detections.isEmpty()) return
+            lastDetectedCount = detections.size
+            lastFrameError = false
 
             val requests = tracker.update(
                 detections,
@@ -156,12 +168,28 @@ class CaptureService : Service() {
                 workWidth,
                 workHeight
             )
-            if (requests.isEmpty()) return
 
-            val points = requests.map { it.x to it.y }
-            val accepted = TapAccessibilityService.sendTaps(points)
-            if (accepted) tracker.markTapped(requests.map { it.trackId })
+            // Send one independent tap at a time. Remaining detected boxes stay
+            // tracked and are tapped on following frames, including boxes behind
+            // another bag in the same column.
+            val target = requests.firstOrNull()
+            if (target != null) {
+                val accepted = TapAccessibilityService.sendTap(target.x, target.y) { completed ->
+                    captureHandler?.post {
+                        if (completed) {
+                            tracker.markTapped(listOf(target.trackId))
+                            completedTapCount++
+                        }
+                        refreshSessionStatus(true)
+                    }
+                }
+                if (!accepted) refreshSessionStatus()
+            } else {
+                refreshSessionStatus()
+            }
         } catch (_: Exception) {
+            lastFrameError = true
+            refreshSessionStatus()
             // Keep the capture service alive if an individual frame is malformed.
         } finally {
             try {
@@ -212,7 +240,29 @@ class CaptureService : Service() {
         return output
     }
 
-    private fun buildNotification(): Notification {
+    private fun refreshSessionStatus(force: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        if (!force && now - lastNotificationUpdateMs < 900L) return
+        lastNotificationUpdateMs = now
+
+        val tapReady = TapAccessibilityService.isConnected()
+        val state = when {
+            !tapReady -> "Accessibility service disconnected"
+            autoTapEnabled -> "AUTO TAPS ON"
+            else -> "AUTO TAPS PAUSED"
+        }
+        val detail = "$state · gift boxes: $lastDetectedCount · taps: $completedTapCount" +
+            if (lastFrameError) " · frame error" else ""
+
+        floatingControls?.updateStats(lastDetectedCount, completedTapCount, tapReady, autoTapEnabled)
+
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID, buildNotification(detail))
+    }
+
+    private fun buildNotification(
+        detail: String = "Tap the floating BC circle to activate or stop automatic tapping."
+    ): Notification {
         val stopIntent = Intent(this, CaptureService::class.java).apply { action = ACTION_STOP }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
         val stopPendingIntent = PendingIntent.getService(this, 21, stopIntent, flags)
@@ -230,7 +280,7 @@ class CaptureService : Service() {
         }
         return builder
             .setContentTitle("Bag Catcher is active")
-            .setContentText("Tap the floating BC circle to activate or stop automatic tapping.")
+            .setContentText(detail)
             .setSmallIcon(android.R.drawable.ic_menu_search)
             .setOngoing(true)
             .setContentIntent(openPendingIntent)
@@ -256,6 +306,7 @@ class CaptureService : Service() {
     private fun stopCaptureResources() {
         isCapturing = false
         autoTapEnabled = false
+        lastDetectedCount = 0
         floatingControls?.remove()
         floatingControls = null
         try { imageReader?.setOnImageAvailableListener(null, null) } catch (_: Exception) {}

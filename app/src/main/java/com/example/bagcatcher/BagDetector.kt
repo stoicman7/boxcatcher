@@ -61,9 +61,9 @@ class BagDetector(context: Context) {
         sourceTemplates = listOf(
             // This crop focuses on the box and bow, so it remains useful when
             // the red pouch body of a neighbouring bag overlaps it.
-            SourceTemplate(core, 0.50f, 0.50f, 0.82),
+            SourceTemplate(core, 0.50f, 0.50f, 0.74),
             // Wider context is a second independent confirmation pattern.
-            SourceTemplate(wide, 33f / 82f, 29f / 62f, 0.82)
+            SourceTemplate(wide, 33f / 82f, 29f / 62f, 0.78)
         )
     }
 
@@ -73,12 +73,12 @@ class BagDetector(context: Context) {
         prepareTemplates(frameWidth)
 
         val candidates = ArrayList<Candidate>(24)
-        val scanStep = 3
-        val sampleStep = 4
-        val yStart = (frameHeight * 0.035f).toInt()
-        val xStart = (frameWidth * 0.07f).toInt()
+        val scanStep = 2
+        val yStart = (frameHeight * 0.025f).toInt()
+        // Scan the entire width: Claude's measurements show bags can enter as far left as x≈14 px.
+        val xStart = 0
         // Avoid the bottom toolbar/chat controls; only tap bags in the main play area.
-        val maxAnchorY = (frameHeight * 0.82f).toInt()
+        val maxAnchorY = (frameHeight * 0.87f).toInt()
 
         for (template in preparedTemplates) {
             val maxX = frameWidth - template.width
@@ -130,7 +130,7 @@ class BagDetector(context: Context) {
 
         // Non-maximum suppression removes repeated matches around one box but
         // keeps distinct boxes stacked in the same vertical column.
-        val selected = ArrayList<Detection>(8)
+        val selected = ArrayList<Detection>(16)
         for (candidate in candidates) {
             val suppressX = max(7f, min(candidate.width, 28) * 0.30f)
             val suppressY = max(7f, min(candidate.height, 24) * 0.30f)
@@ -149,7 +149,7 @@ class BagDetector(context: Context) {
                     )
                 )
             }
-            if (selected.size >= 12) break
+            if (selected.size >= 16) break
         }
         return selected
     }
