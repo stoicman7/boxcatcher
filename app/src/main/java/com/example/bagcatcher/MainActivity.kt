@@ -233,7 +233,7 @@ class MainActivity : Activity() {
             page,
             "1. Start a game round and start detection.\n" +
                 "2. Tap the floating BC circle and choose OPEN DEBUG SETTINGS.\n" +
-                "3. Pause auto taps. Detection and coloured boxes will keep running.\n" +
+                "3. Keep auto taps paused. New sessions start in detection-only mode, and coloured boxes continue running.\n" +
                 "4. Cyan rectangles show the objects the detector matched. The red NEXT TAP crosshair shows the exact point it would tap.\n" +
                 "5. Adjust confidence if boxes are missed or false matches appear. Adjust X/Y offsets until the red crosshair sits on the cream gift box.\n" +
                 "6. Activate auto taps and tune duration/lead only after the target point is correct.\n" +
