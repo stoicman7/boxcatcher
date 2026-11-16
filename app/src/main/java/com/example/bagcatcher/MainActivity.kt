@@ -320,9 +320,9 @@ class MainActivity : Activity() {
         accessButton.text = if (enabled) "1. Automatic tapping is enabled" else "1. Enable automatic tapping"
         val snapshot = CatcherDiagnostics.snapshot()
         val capture = if (snapshot.frames > 0) "Capture analysis is running." else "Start a capture session after opening the game."
-        status.text = "Accessibility service: " + if (enabled) "enabled" else "not enabled" +
+        status.text = "Accessibility service: " + (if (enabled) "enabled" else "not enabled") +
             "\n" + capture +
-            "\nAuto taps: " + if (snapshot.autoTapEnabled) "ON" else "PAUSED"
+            "\nAuto taps: " + (if (snapshot.autoTapEnabled) "ON" else "PAUSED")
         refreshStats()
     }
 
@@ -339,7 +339,7 @@ class MainActivity : Activity() {
             "\nAndroid gesture callback completed: " + d.gestureCompleted +
             "\nAndroid gesture callback cancelled: " + d.gestureCancelled +
             "\nFrame errors: " + d.frameErrors +
-            "\nAuto taps: " + if (d.autoTapEnabled) "ON" else "PAUSED" +
+            "\nAuto taps: " + (if (d.autoTapEnabled) "ON" else "PAUSED") +
             "\nLast event: " + d.lastEvent
     }
 
