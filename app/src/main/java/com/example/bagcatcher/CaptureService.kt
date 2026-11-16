@@ -163,13 +163,13 @@ class CaptureService : Service() {
                 CatcherDiagnostics.setAutoTapEnabled(enabled)
                 CatcherDiagnostics.note(if (enabled) "Automatic tapping activated" else "Automatic tapping paused")
             },
-            { enabled, replayTouches ->
+            learningChange@{ enabled, replayTouches ->
                 if (enabled && replayTouches && !TapAccessibilityService.isConnected()) {
                     learningEnabled = false
                     learningReplayEnabled = false
                     CatcherDiagnostics.note("Game learning not started: Accessibility service is disconnected")
                     refreshSessionStatus(true)
-                    return@FloatingControlOverlay
+                    return@learningChange
                 }
                 learningEnabled = enabled
                 learningReplayEnabled = enabled && replayTouches
