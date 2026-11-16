@@ -4,7 +4,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/** Tracks each gift-box anchor independently, including bags in the same vertical column. */
+/** Tracks each gift-box anchor independently, including boxes in the same column. */
 class BagTracker {
     data class Track(
         val id: Long,
@@ -19,27 +19,27 @@ class BagTracker {
     private val tracks = ArrayList<Track>()
     private var nextId = 1L
 
-    // Claude measured about 1,080 source-screen pixels/second.
-    private val workPixelsPerMs = 0.54f
-    // Predict the gift-box anchor forward to compensate for frame processing and
-    // AccessibilityService dispatch latency. This is a starting calibration value.
-    private val tapLeadMs = 12f
-
     fun update(
         detections: List<BagDetector.Detection>,
         nowMs: Long,
         sourceWidth: Int,
         sourceHeight: Int,
         workWidth: Int,
-        workHeight: Int
+        workHeight: Int,
+        tapLeadMs: Int = 12,
+        fallSpeedPxPerSec: Int = 1080,
+        offsetX: Int = 0,
+        offsetY: Int = 0
     ): List<TapCandidate> {
         tracks.removeAll { nowMs - it.lastSeenMs > 900L }
         val assigned = HashSet<Long>()
         val candidates = ArrayList<TapCandidate>()
 
         val minTapY = workHeight * 0.06f
-        // Do not aim into the lower toolbar; the predicted position is also checked.
+        // Exclude the lower game toolbar. The predicted point gets a second safety check.
         val maxTapY = workHeight * 0.78f
+        val workFallSpeed = fallSpeedPxPerSec.coerceIn(400, 1800) / 1000f *
+            (workHeight.toFloat() / sourceHeight.coerceAtLeast(1))
 
         for (detection in detections.sortedByDescending { it.score }) {
             var best: Track? = null
@@ -50,12 +50,9 @@ class BagTracker {
                 val elapsed = (nowMs - track.lastSeenMs).coerceAtLeast(0L)
                 if (elapsed > 900L) continue
 
-                // Bags descend at approximately 0.54 work pixels per millisecond.
-                val expectedY = track.y + elapsed * workPixelsPerMs
+                val expectedY = track.y + elapsed * workFallSpeed
                 val dx = abs(detection.centerX - track.x)
                 val dy = abs(detection.centerY - expectedY)
-                // The display redraws irregularly; allow one skipped redraw while
-                // retaining separate tracks for closely spaced gift boxes.
                 val toleranceY = max(28f, elapsed * 0.18f + 18f)
 
                 if (dx <= 16f && dy <= toleranceY) {
@@ -81,28 +78,28 @@ class BagTracker {
             track.lastSeenMs = nowMs
 
             if (!track.tapped && detection.centerY in minTapY..maxTapY) {
-                val scaleX = sourceWidth.toFloat() / workWidth
-                val scaleY = sourceHeight.toFloat() / workHeight
-                val screenX = detection.centerX * scaleX
+                val scaleX = sourceWidth.toFloat() / workWidth.coerceAtLeast(1)
+                val scaleY = sourceHeight.toFloat() / workHeight.coerceAtLeast(1)
+                val currentScreenX = detection.centerX * scaleX
                 val currentScreenY = detection.centerY * scaleY
-                val leadScreenPixels = 1080f * tapLeadMs / 1000f
-                val predictedScreenY = currentScreenY + leadScreenPixels
+                val leadScreenPixels = fallSpeedPxPerSec.coerceIn(400, 1800) *
+                    tapLeadMs.coerceIn(0, 100) / 1000f
+                val predictedScreenY = currentScreenY + leadScreenPixels + offsetY
 
-                // Leave room below the navigation/toolbar area and keep taps on-screen.
                 val safeBottom = min(sourceHeight - 1, (sourceHeight * 0.86f).toInt()).toFloat()
-                if (predictedScreenY <= safeBottom) {
+                if (predictedScreenY in 1f..safeBottom) {
                     candidates.add(
                         TapCandidate(
                             track.id,
-                            screenX.coerceIn(1f, (sourceWidth - 2).coerceAtLeast(1).toFloat()),
-                            predictedScreenY.coerceIn(1f, safeBottom)
+                            (currentScreenX + offsetX).coerceIn(1f, (sourceWidth - 2).coerceAtLeast(1).toFloat()),
+                            predictedScreenY
                         )
                     )
                 }
             }
         }
 
-        // Tap the lowest eligible box first: it has the least remaining screen time.
+        // The lowest eligible box has the least remaining screen time.
         return candidates.sortedByDescending { it.y }
     }
 
