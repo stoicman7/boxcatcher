@@ -70,7 +70,8 @@ class TapAccessibilityService : AccessibilityService() {
      * original tap/swipe while the app records its location.
      */
     fun replay(points: List<PointF>, durationMs: Long, onComplete: (Boolean) -> Unit): Boolean {
-        if (!gestureBusy.compareAndSet(false, true) || points.isEmpty()) return false
+        if (points.isEmpty()) return false
+        if (!gestureBusy.compareAndSet(false, true)) return false
 
         val path = Path().apply {
             moveTo(points.first().x, points.first().y)
