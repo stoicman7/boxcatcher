@@ -10,7 +10,8 @@ import kotlin.math.abs
  */
 object LearnedTemplateStore {
     const val PATCH_SIZE = 40
-    private const val MAX_TEMPLATES = 4
+    private const val MAX_ACTIVE_TEMPLATES = 4
+    private const val MAX_SAVED_EXAMPLES = 50
     private const val PREFS = "bag_catcher_learned_data"
     private const val REVISION_KEY = "revision"
 
@@ -62,11 +63,14 @@ object LearnedTemplateStore {
 
         val directory = directory(context)
         if (!directory.exists() && !directory.mkdirs()) return false
-        val file = File(directory, "positive_" + System.currentTimeMillis() + ".bin")
+        val file = File(
+            directory,
+            "positive_" + System.currentTimeMillis() + "_" + System.nanoTime() + ".bin"
+        )
         return try {
             file.writeBytes(patch)
             val files = templateFiles(context)
-            while (files.size > MAX_TEMPLATES) files.first().delete()
+            while (files.size > MAX_SAVED_EXAMPLES) files.first().delete()
             bumpRevision(context)
             true
         } catch (_: Exception) {
@@ -75,7 +79,7 @@ object LearnedTemplateStore {
     }
 
     fun loadPatches(context: Context): List<ByteArray> =
-        templateFiles(context).mapNotNull { file ->
+        templateFiles(context).takeLast(MAX_ACTIVE_TEMPLATES).mapNotNull { file ->
             try {
                 file.readBytes().takeIf { it.size == PATCH_SIZE * PATCH_SIZE }
             } catch (_: Exception) {
