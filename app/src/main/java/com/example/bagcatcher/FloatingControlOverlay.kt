@@ -258,7 +258,7 @@ class FloatingControlOverlay(
     private fun statusText(): String {
         val tapState = if (tapServiceReady) "tap service ready" else "tap service OFF"
         val autoState = if (enabled) "AUTO ON" else "AUTO PAUSED"
-        return "$autoState · $tapState\\nBoxes: $detectedCount · successful taps: $completedTapCount"
+        return "$autoState · $tapState\nBoxes: $detectedCount · successful taps: $completedTapCount"
     }
 
     fun updateStats(boxes: Int, taps: Int, serviceReady: Boolean, autoEnabled: Boolean) {
