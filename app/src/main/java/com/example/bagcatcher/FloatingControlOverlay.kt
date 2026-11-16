@@ -293,6 +293,7 @@ class FloatingControlOverlay(
     }
 
     private fun setEnabled(value: Boolean) {
+        if (value && learningEnabled) setLearningEnabled(false, false)
         enabled = value
         updateBubble()
         safelyUpdateBubble()
