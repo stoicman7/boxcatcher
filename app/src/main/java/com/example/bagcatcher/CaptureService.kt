@@ -303,6 +303,23 @@ class CaptureService : Service() {
             lastGrayFrame = gray
             lastGrayFrameAtMs = now
 
+            // During supervised learning the user is supplying explicit
+            // labels. Skip the expensive automatic search to keep video/game
+            // playback responsive; retain the fresh grayscale frame for crops.
+            if (learningEnabled) {
+                lastDetectedCount = 0
+                detectionOverlay?.update(
+                    emptyList(),
+                    sourceWidth.toFloat() / workWidth,
+                    sourceHeight.toFloat() / workHeight,
+                    null,
+                    null,
+                    false
+                )
+                refreshSessionStatus()
+                return
+            }
+
             val activeDetector = detector ?: return
             val detections = activeDetector.find(
                 gray,
