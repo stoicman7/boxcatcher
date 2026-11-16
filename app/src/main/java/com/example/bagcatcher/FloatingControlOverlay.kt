@@ -22,7 +22,9 @@ import kotlin.math.abs
 class FloatingControlOverlay(
     private val context: Context,
     initialEnabled: Boolean,
+    initialLearningEnabled: Boolean,
     private val onEnabledChanged: (Boolean) -> Unit,
+    private val onLearningChanged: (Boolean) -> Unit,
     private val onOpenDebug: () -> Unit
 ) {
     private val windowManager =
@@ -53,6 +55,8 @@ class FloatingControlOverlay(
     private var rejectedTapCount = 0L
     private var tapServiceReady = false
     private var enabled = initialEnabled
+    private var learningEnabled = initialLearningEnabled
+    private var learnedSampleCount = 0
     private var removed = false
     private var downRawX = 0f
     private var downRawY = 0f
@@ -112,8 +116,16 @@ class FloatingControlOverlay(
     }
 
     private fun updateBubble() {
-        bubble.text = if (enabled) "ON" else "BC"
-        val fill = if (enabled) 0xFF16845B.toInt() else 0xFF6541B8.toInt()
+        bubble.text = when {
+            learningEnabled -> "LEARN"
+            enabled -> "ON"
+            else -> "BC"
+        }
+        val fill = when {
+            learningEnabled -> 0xFFB36A13.toInt()
+            enabled -> 0xFF16845B.toInt()
+            else -> 0xFF6541B8.toInt()
+        }
         bubble.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(fill)
@@ -173,6 +185,16 @@ class FloatingControlOverlay(
         }
         panel.addView(stop, actionParams())
 
+        val learning = actionRow(
+            if (learningEnabled) "STOP LEARNING MODE" else "START LEARNING MODE",
+            if (learningEnabled) 0xFF9B6A20.toInt() else 0xFF76501A.toInt()
+        )
+        learning.setOnClickListener {
+            setLearningEnabled(!learningEnabled)
+            hideMenu()
+        }
+        panel.addView(learning, actionParams())
+
         val debug = actionRow("OPEN DEBUG SETTINGS", 0xFF394457.toInt())
         debug.setOnClickListener {
             hideMenu()
@@ -229,7 +251,7 @@ class FloatingControlOverlay(
         val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
         params.x = (bubbleParams.x + bubbleSize - panelWidth).coerceIn(0, maxX)
 
-        val estimatedPanelHeight = dp(245)
+        val estimatedPanelHeight = dp(290)
         val below = bubbleParams.y + bubbleSize + dp(8)
         params.y = if (below + estimatedPanelHeight <= metrics.heightPixels) {
             below
@@ -265,10 +287,20 @@ class FloatingControlOverlay(
         statusView?.text = statusText()
     }
 
+    private fun setLearningEnabled(value: Boolean) {
+        learningEnabled = value
+        if (value && enabled) setEnabled(false)
+        updateBubble()
+        safelyUpdateBubble()
+        onLearningChanged(value)
+        statusView?.text = statusText()
+    }
+
     private fun statusText(): String {
         val tapState = if (tapServiceReady) "tap service ready" else "tap service OFF"
         val autoState = if (enabled) "AUTO ON" else "AUTO PAUSED"
-        return "$autoState · $tapState\nBoxes: $detectedCount · attempts: $attemptedTapCount\nAndroid gesture callbacks completed: $completedTapCount · rejected/busy: $rejectedTapCount"
+        val learningState = if (learningEnabled) "LEARNING ON · samples: $learnedSampleCount\\n" else ""
+        return "$autoState · $tapState\\n$learningStateBoxes: $detectedCount · attempts: $attemptedTapCount\\nAndroid gesture callbacks completed: $completedTapCount · rejected/busy: $rejectedTapCount"
     }
 
     fun updateStats(
@@ -277,13 +309,15 @@ class FloatingControlOverlay(
         serviceReady: Boolean,
         autoEnabled: Boolean,
         attempts: Long = 0L,
-        rejected: Long = 0L
+        rejected: Long = 0L,
+        samples: Int = 0
     ) {
         mainHandler.post {
             detectedCount = boxes
             completedTapCount = taps
             attemptedTapCount = attempts
             rejectedTapCount = rejected
+            learnedSampleCount = samples
             tapServiceReady = serviceReady
             if (enabled != autoEnabled) {
                 enabled = autoEnabled
