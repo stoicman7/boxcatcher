@@ -17,6 +17,7 @@ object CatcherDiagnostics {
         val gestureCompleted: Long,
         val gestureCancelled: Long,
         val frameErrors: Long,
+        val autoTapEnabled: Boolean,
         val lastEvent: String
     )
 
@@ -31,6 +32,7 @@ object CatcherDiagnostics {
     private var gestureCompleted = 0L
     private var gestureCancelled = 0L
     private var frameErrors = 0L
+    private var autoTapEnabled = false
 
     private fun addEventLocked(message: String) {
         val stamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
@@ -49,6 +51,7 @@ object CatcherDiagnostics {
             gestureCompleted = 0L
             gestureCancelled = 0L
             frameErrors = 0L
+            autoTapEnabled = true
             events.clear()
             addEventLocked("Capture session started")
         }
@@ -105,6 +108,13 @@ object CatcherDiagnostics {
         }
     }
 
+    fun setAutoTapEnabled(enabled: Boolean) {
+        synchronized(lock) {
+            autoTapEnabled = enabled
+            addEventLocked(if (enabled) "Automatic tapping enabled" else "Automatic tapping paused")
+        }
+    }
+
     fun note(message: String) {
         synchronized(lock) { addEventLocked(message) }
     }
@@ -113,12 +123,13 @@ object CatcherDiagnostics {
         Snapshot(
             frames, rawCandidates, detections, tapAttempts, dispatchAccepted,
             dispatchRejected, gestureCompleted, gestureCancelled, frameErrors,
-            events.peekLast() ?: "No events yet"
+            autoTapEnabled, events.peekLast() ?: "No events yet"
         )
     }
 
-    fun report(settings: CatcherSettings, tapServiceReady: Boolean, autoTapEnabled: Boolean): String {
+    fun report(settings: CatcherSettings, tapServiceReady: Boolean): String {
         synchronized(lock) {
+            val currentAutoTapEnabled = autoTapEnabled
             val out = StringBuilder()
             out.append("BAG CATCHER DIAGNOSTIC REPORT\n")
             out.append("Accessibility service connected: "+"$"+"tapServiceReady\n")
