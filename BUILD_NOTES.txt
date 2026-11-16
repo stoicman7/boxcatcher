@@ -1,0 +1,10 @@
+Build configuration:
+- Android Gradle Plugin: 8.7.3
+- Kotlin Android plugin: 2.0.21
+- Gradle: 8.9
+- Compile SDK: 35
+- Min SDK: 26 (Android 8.0+)
+- Target SDK: 28
+- Java/Kotlin target: 17
+
+The project has not been compiled in this container because Android SDK and Gradle are not installed here. Use the included GitHub Actions workflow to produce the debug APK.

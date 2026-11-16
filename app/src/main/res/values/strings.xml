@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Bag Catcher</string>
+    <string name="accessibility_description">Allows Bag Catcher to tap detected gift boxes during an active capture session.</string>
+</resources>
