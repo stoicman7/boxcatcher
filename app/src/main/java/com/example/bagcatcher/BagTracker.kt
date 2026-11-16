@@ -23,7 +23,7 @@ class BagTracker {
     private val workPixelsPerMs = 0.54f
     // Predict the gift-box anchor forward to compensate for frame processing and
     // AccessibilityService dispatch latency. This is a starting calibration value.
-    private val tapLeadMs = 90f
+    private val tapLeadMs = 12f
 
     fun update(
         detections: List<BagDetector.Detection>,
