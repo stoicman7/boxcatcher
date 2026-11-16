@@ -24,7 +24,7 @@ class FloatingControlOverlay(
     initialEnabled: Boolean,
     initialLearningEnabled: Boolean,
     private val onEnabledChanged: (Boolean) -> Unit,
-    private val onLearningChanged: (Boolean) -> Unit,
+    private val onLearningChanged: (Boolean, Boolean) -> Unit,
     private val onOpenDebug: () -> Unit
 ) {
     private val windowManager =
@@ -56,6 +56,7 @@ class FloatingControlOverlay(
     private var tapServiceReady = false
     private var enabled = initialEnabled
     private var learningEnabled = initialLearningEnabled
+    private var learningReplayEnabled = false
     private var learnedSampleCount = 0
     private var removed = false
     private var downRawX = 0f
@@ -185,15 +186,28 @@ class FloatingControlOverlay(
         }
         panel.addView(stop, actionParams())
 
-        val learning = actionRow(
-            if (learningEnabled) "STOP LEARNING MODE" else "START LEARNING MODE",
-            if (learningEnabled) 0xFF9B6A20.toInt() else 0xFF76501A.toInt()
-        )
-        learning.setOnClickListener {
-            setLearningEnabled(!learningEnabled)
-            hideMenu()
+        if (learningEnabled) {
+            val stopLearning = actionRow("STOP LEARNING MODE", 0xFF9B343B.toInt())
+            stopLearning.setOnClickListener {
+                setLearningEnabled(false, false)
+                hideMenu()
+            }
+            panel.addView(stopLearning, actionParams())
+        } else {
+            val videoLearning = actionRow("LEARN FROM VIDEO · NO REPLAY", 0xFF76501A.toInt())
+            videoLearning.setOnClickListener {
+                setLearningEnabled(true, false)
+                hideMenu()
+            }
+            panel.addView(videoLearning, actionParams())
+
+            val gameLearning = actionRow("LEARN IN GAME · REPLAY TAPS", 0xFF9B6A20.toInt())
+            gameLearning.setOnClickListener {
+                setLearningEnabled(true, true)
+                hideMenu()
+            }
+            panel.addView(gameLearning, actionParams())
         }
-        panel.addView(learning, actionParams())
 
         val debug = actionRow("OPEN DEBUG SETTINGS", 0xFF394457.toInt())
         debug.setOnClickListener {
@@ -251,7 +265,7 @@ class FloatingControlOverlay(
         val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
         params.x = (bubbleParams.x + bubbleSize - panelWidth).coerceIn(0, maxX)
 
-        val estimatedPanelHeight = dp(290)
+        val estimatedPanelHeight = dp(330)
         val below = bubbleParams.y + bubbleSize + dp(8)
         params.y = if (below + estimatedPanelHeight <= metrics.heightPixels) {
             below
@@ -287,19 +301,23 @@ class FloatingControlOverlay(
         statusView?.text = statusText()
     }
 
-    private fun setLearningEnabled(value: Boolean) {
+    private fun setLearningEnabled(value: Boolean, replayTouches: Boolean) {
         learningEnabled = value
+        learningReplayEnabled = value && replayTouches
         if (value && enabled) setEnabled(false)
         updateBubble()
         safelyUpdateBubble()
-        onLearningChanged(value)
+        onLearningChanged(value, learningReplayEnabled)
         statusView?.text = statusText()
     }
 
     private fun statusText(): String {
         val tapState = if (tapServiceReady) "tap service ready" else "tap service OFF"
         val autoState = if (enabled) "AUTO ON" else "AUTO PAUSED"
-        val learningState = if (learningEnabled) "LEARNING ON · samples: $learnedSampleCount\n" else ""
+        val learningState = if (learningEnabled) {
+            (if (learningReplayEnabled) "LEARNING GAME MODE" else "LEARNING VIDEO MODE") +
+                " · samples: $learnedSampleCount\n"
+        } else ""
         return "$autoState · $tapState\n${learningState}Boxes: $detectedCount · attempts: $attemptedTapCount\nAndroid gesture callbacks completed: $completedTapCount · rejected/busy: $rejectedTapCount"
     }
 
@@ -311,7 +329,8 @@ class FloatingControlOverlay(
         attempts: Long = 0L,
         rejected: Long = 0L,
         samples: Int = 0,
-        learning: Boolean = false
+        learning: Boolean = false,
+        replayTouches: Boolean = false
     ) {
         mainHandler.post {
             detectedCount = boxes
@@ -320,6 +339,7 @@ class FloatingControlOverlay(
             rejectedTapCount = rejected
             learnedSampleCount = samples
             learningEnabled = learning
+            learningReplayEnabled = learning && replayTouches
             tapServiceReady = serviceReady
             if (enabled != autoEnabled) {
                 enabled = autoEnabled
