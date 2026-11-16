@@ -39,7 +39,7 @@ Install the debug APK once. During a game session, tap the floating **BC** circl
 
 Recommended calibration order:
 
-1. Pause automatic tapping. Detection and the overlay continue running.
+1. A new session starts with auto taps paused. Detection and the overlay continue running.
 2. Check the cyan rectangles. They should surround the gift-box pattern, not unrelated graphics. Lower confidence if real boxes are missed; raise it if unrelated objects are marked.
 3. Check the red **NEXT TAP** crosshair. Adjust horizontal/vertical offset until it sits on the cream box area. Positive Y moves down; negative Y moves up.
 4. Only after the target is correctly positioned, activate tapping and tune prediction lead and gesture duration.
