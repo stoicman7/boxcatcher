@@ -51,7 +51,7 @@ object CatcherDiagnostics {
             gestureCompleted = 0L
             gestureCancelled = 0L
             frameErrors = 0L
-            autoTapEnabled = true
+            autoTapEnabled = false
             events.clear()
             addEventLocked("Capture session started")
         }
