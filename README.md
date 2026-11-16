@@ -48,6 +48,17 @@ Recommended calibration order:
 
 The diagnostic report deliberately separates an attempted tap, Android accepting the dispatch, and Android's completed/cancelled gesture callback. A completed callback does **not** prove that the game registered the touch.
 
+## Learning from your own taps
+
+Bag Catcher has two supervised learning modes available from the floating **BC** menu:
+
+- **Learn from video:** tap the gift boxes shown in a playing video. The app records the screen crop around each tap but does not forward the touch to the video player, so playback continues.
+- **Learn in game:** tap the gift boxes yourself. The app records each positive example and replays the same touch gesture into the game through the Accessibility service.
+
+Both modes pause automatic tapping. Only short taps are treated as positive bag examples; swipes are not used as labels. The app stores up to 50 distinct grayscale examples privately on the device and uses the four most recent examples as additional detector templates to limit CPU load. The detector rebuilds its learned templates automatically after a new example is saved. The app includes undo-last and clear-all controls in the learning section of its settings screen.
+
+Learning is local to the device. It is an adaptive template-matching system, not a cloud-trained neural network. A tap is treated as a positive label because the user deliberately selected it, so only tap actual gift boxes while learning. If a wrong object is taught, undo that example.
+
 ## Build the APK with GitHub Actions
 
 This ZIP includes `.github/workflows/android.yml`. GitHub Actions builds a debug APK and stores it as an artifact.
