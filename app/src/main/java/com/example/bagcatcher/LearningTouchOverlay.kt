@@ -124,7 +124,7 @@ class LearningTouchOverlay(
         if (!attached) return
         params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            if (enabled) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0
+            (if (enabled) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0)
         try {
             windowManager.updateViewLayout(this, params)
         } catch (_: Exception) {
