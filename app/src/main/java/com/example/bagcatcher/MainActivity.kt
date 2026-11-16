@@ -152,7 +152,7 @@ class MainActivity : Activity() {
         addSection(page, "LEARNING FROM YOUR GAMEPLAY")
         addDescription(
             page,
-            "Start a capture session, tap the floating BC circle, then choose START LEARNING MODE. Tap only the gift boxes you want the detector to learn. The app records a small screen crop around each tap and replays your touch to the game. Learning automatically pauses auto-tapping."
+            "Start a capture session, tap the floating BC circle, then choose LEARN FROM VIDEO or LEARN IN GAME. Video mode records your taps without sending them to the video player, so the video keeps playing. Game mode records your taps and replays them into the game. Tap only the gift boxes you want the detector to learn. Both modes pause automatic tapping."
         )
         learningView = TextView(this).apply {
             textSize = 14f
@@ -182,7 +182,7 @@ class MainActivity : Activity() {
 
         addDescription(
             page,
-            "Examples are stored privately on this phone and survive app restarts and updates. The detector uses up to four distinct examples in addition to its original templates. Undo or clear them here if a tap accidentally taught the wrong object."
+            "Examples are stored privately on this phone and survive app restarts and updates. The detector uses up to four distinct examples in addition to its original templates. Undo or clear them here if a tap accidentally taught the wrong object. In video mode, tap the boxes in the playing footage; the app consumes those touches without pausing the video."
         )
 
         addSection(page, "LIVE DETECTION AND TAP SETTINGS")
