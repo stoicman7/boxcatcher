@@ -14,6 +14,7 @@ import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.graphics.PointF
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -45,6 +46,10 @@ class CaptureService : Service() {
     private var lastNotificationUpdateMs = 0L
     private var floatingControls: FloatingControlOverlay? = null
     private var detectionOverlay: DetectionOverlay? = null
+    private var learningTouchOverlay: LearningTouchOverlay? = null
+    @Volatile private var learningEnabled = false
+    @Volatile private var lastGrayFrame: ByteArray? = null
+    @Volatile private var lastGrayFrameAtMs = 0L
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -140,19 +145,108 @@ class CaptureService : Service() {
     private fun showFloatingControls() {
         floatingControls?.remove()
         detectionOverlay?.remove()
+        learningTouchOverlay?.remove()
 
-        floatingControls = FloatingControlOverlay(this, autoTapEnabled, { enabled ->
-            autoTapEnabled = enabled
-            CatcherDiagnostics.setAutoTapEnabled(enabled)
-            CatcherDiagnostics.note("Visual detection continues while auto taps are " + if (enabled) "ON" else "PAUSED")
-        }, {
-            val debugIntent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
-            startActivity(debugIntent)
-        })
+        learningTouchOverlay = LearningTouchOverlay(this) { points, durationMs, finish ->
+            handleLearningGesture(points, durationMs, finish)
+        }
 
         detectionOverlay = DetectionOverlay(this).also { it.attach() }
+
+        floatingControls = FloatingControlOverlay(
+            this,
+            autoTapEnabled,
+            learningEnabled,
+            { enabled ->
+                autoTapEnabled = enabled
+                CatcherDiagnostics.setAutoTapEnabled(enabled)
+                CatcherDiagnostics.note(if (enabled) "Automatic tapping activated" else "Automatic tapping paused")
+            },
+            { enabled ->
+                learningEnabled = enabled
+                if (enabled) {
+                    autoTapEnabled = false
+                    CatcherDiagnostics.setAutoTapEnabled(false)
+                    learningTouchOverlay?.attach()
+                    floatingControls?.bringToFront()
+                    CatcherDiagnostics.note("Learning mode ON: your taps are recorded as positive bag examples and replayed to the game")
+                } else {
+                    learningTouchOverlay?.remove()
+                    CatcherDiagnostics.note("Learning mode OFF")
+                }
+                refreshSessionStatus(true)
+            },
+            {
+                val debugIntent = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                startActivity(debugIntent)
+            }
+        )
+    }
+
+    private fun handleLearningGesture(
+        points: List<PointF>,
+        durationMs: Long,
+        finish: (Boolean) -> Unit
+    ) {
+        if (points.isEmpty()) {
+            finish(false)
+            return
+        }
+
+        val first = points.first()
+        val last = points.last()
+        val movement = kotlin.math.hypot(
+            (last.x - first.x).toDouble(),
+            (last.y - first.y).toDouble()
+        )
+
+        // Only deliberate taps become positive training examples. Swipes and
+        // drags are replayed normally but are not treated as bag labels.
+        if (movement <= 24.0) {
+            val frame = lastGrayFrame
+            val frameAge = SystemClock.elapsedRealtime() - lastGrayFrameAtMs
+            if (frame != null && frameAge in 0..450L) {
+                val workX = (first.x * workWidth / sourceWidth).toInt()
+                val workY = (first.y * workHeight / sourceHeight).toInt()
+                captureHandler?.post {
+                    val saved = LearnedTemplateStore.addPositive(
+                        this,
+                        frame,
+                        workWidth,
+                        workHeight,
+                        workX,
+                        workY
+                    )
+                    if (saved) {
+                        CatcherDiagnostics.note(
+                            "Learned a positive bag example at screen (" +
+                                first.x.toInt() + ", " + first.y.toInt() +
+                                "); total examples: " + LearnedTemplateStore.count(this)
+                        )
+                    } else {
+                        CatcherDiagnostics.note("Tap received but example was too flat, too similar, or could not be saved")
+                    }
+                    refreshSessionStatus(true)
+                }
+            } else {
+                CatcherDiagnostics.note("Learning tap not saved: no recent captured frame was available")
+            }
+        }
+
+        val accepted = TapAccessibilityService.replayUserGesture(points, durationMs) { completed ->
+            if (completed) {
+                CatcherDiagnostics.note("User gesture replay completed; game response is not verified")
+            } else {
+                CatcherDiagnostics.note("User gesture replay was cancelled")
+            }
+            finish(completed)
+        }
+        if (!accepted) {
+            CatcherDiagnostics.note("Could not replay learning gesture; check Accessibility service and gesture availability")
+            finish(false)
+        }
     }
 
     private fun processLatestImage(reader: ImageReader) {
@@ -310,7 +404,8 @@ class CaptureService : Service() {
             tapReady,
             autoTapEnabled,
             snapshot.tapAttempts,
-            snapshot.dispatchRejected
+            snapshot.dispatchRejected,
+            LearnedTemplateStore.count(this)
         )
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -369,6 +464,11 @@ class CaptureService : Service() {
         floatingControls = null
         detectionOverlay?.remove()
         detectionOverlay = null
+        learningTouchOverlay?.remove()
+        learningTouchOverlay = null
+        learningEnabled = false
+        lastGrayFrame = null
+        lastGrayFrameAtMs = 0L
         try { imageReader?.setOnImageAvailableListener(null, null) } catch (_: Exception) {}
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
