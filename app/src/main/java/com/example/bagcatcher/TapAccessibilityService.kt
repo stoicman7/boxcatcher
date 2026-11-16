@@ -33,7 +33,7 @@ class TapAccessibilityService : AccessibilityService() {
 
         val path = Path().apply {
             moveTo(x, y)
-            lineTo(x, y)
+            lineTo(x + 1f, y + 1f)
         }
         val stroke = GestureDescription.StrokeDescription(path, 0L, TAP_DURATION_MS)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
@@ -67,7 +67,7 @@ class TapAccessibilityService : AccessibilityService() {
         @Volatile
         private var instance: TapAccessibilityService? = null
         private val gestureBusy = AtomicBoolean(false)
-        private const val TAP_DURATION_MS = 55L
+        private const val TAP_DURATION_MS = 75L
 
         fun sendTap(x: Float, y: Float, onComplete: (Boolean) -> Unit): Boolean {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
