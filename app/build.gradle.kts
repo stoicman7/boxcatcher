@@ -13,8 +13,8 @@ android {
         // Target 28 to keep the first release compatible with Android 8.1
         // without introducing newer runtime permission requirements.
         targetSdk = 28
-        versionCode = 2
-        versionName = "1.1-debug"
+        versionCode = 3
+        versionName = "1.2-learning"
     }
 
     buildFeatures {
