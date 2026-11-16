@@ -1,15 +1,13 @@
 package com.example.bagcatcher
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
@@ -42,7 +40,7 @@ class MainActivity : Activity() {
         }
 
         val scroll = ScrollView(this).apply {
-            fillViewport = true
+            isFillViewport = true
             addView(page)
         }
 
@@ -122,7 +120,7 @@ class MainActivity : Activity() {
     private fun isTapServiceEnabled(): Boolean {
         val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
         val expectedClass = TapAccessibilityService::class.java.name
-        return manager.getEnabledAccessibilityServiceList(AccessibilityManager.FEEDBACK_ALL_MASK).any { info ->
+        return manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any { info ->
             info.resolveInfo?.serviceInfo?.let { serviceInfo ->
                 serviceInfo.packageName == packageName && serviceInfo.name == expectedClass
             } == true
