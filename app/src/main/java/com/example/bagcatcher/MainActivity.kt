@@ -27,6 +27,7 @@ import android.widget.Toast
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var statsView: TextView
+    private lateinit var learningView: TextView
     private lateinit var accessButton: Button
     private var liveSettings = CatcherSettings()
     private val projectionRequestCode = 4107
@@ -147,6 +148,42 @@ class MainActivity : Activity() {
             Toast.makeText(this, "Diagnostic counters reset", Toast.LENGTH_SHORT).show()
         }.apply { setBackgroundColor(0xFF343B48.toInt()) }
         page.addView(resetLogButton, buttonParams())
+
+        addSection(page, "LEARNING FROM YOUR GAMEPLAY")
+        addDescription(
+            page,
+            "Start a capture session, tap the floating BC circle, then choose START LEARNING MODE. Tap only the gift boxes you want the detector to learn. The app records a small screen crop around each tap and replays your touch to the game. Learning automatically pauses auto-tapping."
+        )
+        learningView = TextView(this).apply {
+            textSize = 14f
+            setTextColor(0xFFE5E8EE.toInt())
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setBackgroundColor(0xFF1A202B.toInt())
+        }
+        page.addView(learningView, matchWrap())
+
+        val undoLearningButton = makeButton("Undo last learned example") {
+            val undone = LearnedTemplateStore.undoLast(this)
+            refreshStats()
+            Toast.makeText(
+                this,
+                if (undone) "Last example removed" else "There are no examples to undo",
+                Toast.LENGTH_SHORT
+            ).show()
+        }.apply { setBackgroundColor(0xFF343B48.toInt()) }
+        page.addView(undoLearningButton, buttonParams())
+
+        val clearLearningButton = makeButton("Clear all learned examples") {
+            LearnedTemplateStore.clear(this)
+            refreshStats()
+            Toast.makeText(this, "All learned examples cleared", Toast.LENGTH_SHORT).show()
+        }.apply { setBackgroundColor(0xFF8A343A.toInt()) }
+        page.addView(clearLearningButton, buttonParams())
+
+        addDescription(
+            page,
+            "Examples are stored privately on this phone and survive app restarts and updates. The detector uses up to four distinct examples in addition to its original templates. Undo or clear them here if a tap accidentally taught the wrong object."
+        )
 
         addSection(page, "LIVE DETECTION AND TAP SETTINGS")
         addDescription(
@@ -339,12 +376,18 @@ class MainActivity : Activity() {
             "\nAndroid gesture callback completed: " + d.gestureCompleted +
             "\nAndroid gesture callback cancelled: " + d.gestureCancelled +
             "\nFrame errors: " + d.frameErrors +
+            "\nLearned positive examples: " + LearnedTemplateStore.count(this) +
             "\nAuto taps: " + (if (d.autoTapEnabled) "ON" else "PAUSED") +
             "\nLast event: " + d.lastEvent
+        if (::learningView.isInitialized) {
+            learningView.text = "Saved positive examples: " + LearnedTemplateStore.count(this) +
+                "\nLearning data stays on this device."
+        }
     }
 
     private fun buildReport(): String {
-        return CatcherDiagnostics.report(liveSettings, TapAccessibilityService.isConnected())
+        return CatcherDiagnostics.report(liveSettings, TapAccessibilityService.isConnected()) +
+            "\nLearned positive examples: " + LearnedTemplateStore.count(this)
     }
 
     private fun isTapServiceEnabled(): Boolean {
